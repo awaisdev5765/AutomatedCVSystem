@@ -1,0 +1,139 @@
+﻿@page "/"
+
+<PageTitle>Automated CV System - Home</PageTitle>
+
+<div class="hero-section">
+    <h1>Automated CV Customization System</h1>
+    <p class="lead">Transform your job application process with AI-powered CV customization</p>
+    <div class="features">
+        <div class="feature-card">
+            <h3>📝 Smart Profile Management</h3>
+            <p>Store and manage your professional information in one place</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔍 Intelligent Job Analysis</h3>
+            <p>AI-powered analysis of job descriptions to extract key requirements</p>
+        </div>
+        <div class="feature-card">
+            <h3>📄 Automated CV Generation</h3>
+            <p>Generate tailored CVs in PDF and Word formats with ATS compatibility</p>
+        </div>
+    </div>
+</div>
+
+<div class="getting-started">
+    <h2>Getting Started</h2>
+    <div class="steps">
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>Create Your Profile</h4>
+                <p>Add your personal information, education, work experience, and skills</p>
+                <a href="/profiles" class="btn btn-primary">Create Profile</a>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>Analyze Job Descriptions</h4>
+                <p>Paste job descriptions to extract key requirements and skills</p>
+                <a href="/job-analysis" class="btn btn-primary">Analyze Jobs</a>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>Generate Customized CVs</h4>
+                <p>Create tailored CVs that match job requirements perfectly</p>
+                <a href="/cv-generation" class="btn btn-primary">Generate CV</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hero-section {
+        text-align: center;
+        padding: 2rem 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        margin: -1rem -1rem 2rem -1rem;
+    }
+
+    .hero-section h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .lead {
+        font-size: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .feature-card {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 1.5rem;
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+    }
+
+    .feature-card h3 {
+        margin-bottom: 1rem;
+    }
+
+    .getting-started {
+        padding: 2rem 0;
+    }
+
+    .steps {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .step {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .step-number {
+        background: #007bff;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    .step-content h4 {
+        margin-bottom: 0.5rem;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+    }
+
+    .btn:hover {
+        background: #0056b3;
+        color: white;
+    }
+</style>

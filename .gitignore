@@ -1,0 +1,30 @@
+# Build output
+**/bin/
+**/obj/
+publish/
+GeneratedCVs/
+logs/
+
+# Local development and IDE state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.DS_Store
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Test and coverage output
+TestResults/
+coverage/
+*.trx

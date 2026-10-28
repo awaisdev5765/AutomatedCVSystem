@@ -1,0 +1,435 @@
+@page "/profiles"
+@using AutomatedCVSystem.Core.DTOs
+@using AutomatedCVSystem.Web.Services
+@inject ApiService ApiService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>User Profiles - Automated CV System</PageTitle>
+
+<div class="profiles-container">
+    <div class="header">
+        <h1>User Profiles</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">
+            <span class="oi oi-plus"></span> Create New Profile
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading">Loading profiles...</div>
+    }
+    else if (profiles.Any())
+    {
+        <div class="profiles-grid">
+            @foreach (var profile in profiles)
+            {
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <h3>@profile.FirstName @profile.LastName</h3>
+                        <div class="profile-actions">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditProfile(profile)">
+                                <span class="oi oi-pencil"></span> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteProfile(profile.Id)">
+                                <span class="oi oi-trash"></span> Delete
+                            </button>
+                        </div>
+                    </div>
+                    <div class="profile-info">
+                        <p><strong>Email:</strong> @profile.Email</p>
+                        @if (!string.IsNullOrEmpty(profile.PhoneNumber))
+                        {
+                            <p><strong>Phone:</strong> @profile.PhoneNumber</p>
+                        }
+                        <p><strong>Skills:</strong> @profile.Skills.Count</p>
+                        <p><strong>Experience:</strong> @profile.WorkExperiences.Count positions</p>
+                        <p><strong>Education:</strong> @profile.Educations.Count degrees</p>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <h3>No profiles found</h3>
+            <p>Create your first profile to get started with automated CV generation.</p>
+            <button class="btn btn-primary" @onclick="ShowCreateForm">Create Profile</button>
+        </div>
+    }
+</div>
+
+@if (showCreateForm)
+{
+    <div class="modal-overlay" @onclick="HideCreateForm">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>@(editingProfile == null ? "Create New Profile" : "Edit Profile")</h2>
+                <button class="btn-close" @onclick="HideCreateForm">&times;</button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="currentProfile" OnValidSubmit="SaveProfile">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label for="firstName">First Name *</label>
+                        <InputText id="firstName" @bind-Value="currentProfile.FirstName" class="form-control" />
+                        <ValidationMessage For="@(() => currentProfile.FirstName)" />
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name *</label>
+                        <InputText id="lastName" @bind-Value="currentProfile.LastName" class="form-control" />
+                        <ValidationMessage For="@(() => currentProfile.LastName)" />
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <InputText id="email" @bind-Value="currentProfile.Email" class="form-control" />
+                        <ValidationMessage For="@(() => currentProfile.Email)" />
+                    </div>
+                    <div class="form-group">
+                        <label for="phoneNumber">Phone Number</label>
+                        <InputText id="phoneNumber" @bind-Value="currentProfile.PhoneNumber" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <InputTextArea id="address" @bind-Value="currentProfile.Address" class="form-control" rows="2" />
+                    </div>
+                    <div class="form-group">
+                        <label for="city">City</label>
+                        <InputText id="city" @bind-Value="currentProfile.City" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label for="country">Country</label>
+                        <InputText id="country" @bind-Value="currentProfile.Country" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label for="professionalSummary">Professional Summary</label>
+                        <InputTextArea id="professionalSummary" @bind-Value="currentProfile.ProfessionalSummary" class="form-control" rows="4" />
+                    </div>
+                    <div class="form-group">
+                        <label for="linkedInProfile">LinkedIn Profile</label>
+                        <InputText id="linkedInProfile" @bind-Value="currentProfile.LinkedInProfile" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label for="gitHubProfile">GitHub Profile</label>
+                        <InputText id="gitHubProfile" @bind-Value="currentProfile.GitHubProfile" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label for="portfolioWebsite">Portfolio Website</label>
+                        <InputText id="portfolioWebsite" @bind-Value="currentProfile.PortfolioWebsite" class="form-control" />
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>@(editingProfile == null ? "Create Profile" : "Update Profile")</span>
+                            }
+                        </button>
+                        <button type="button" class="btn btn-secondary" @onclick="HideCreateForm">Cancel</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .profiles-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .profiles-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .profile-card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+
+    .profile-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .profile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .profile-header h3 {
+        margin: 0;
+        color: #333;
+    }
+
+    .profile-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .profile-info p {
+        margin: 0.5rem 0;
+        color: #666;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-outline-primary {
+        background: transparent;
+        color: #007bff;
+        border: 1px solid #007bff;
+    }
+
+    .btn-outline-danger {
+        background: transparent;
+        color: #dc3545;
+        border: 1px solid #dc3545;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+</style>
+
+@code {
+    private List<UserProfileDto> profiles = new();
+    private bool isLoading = true;
+    private bool showCreateForm = false;
+    private bool isSaving = false;
+    private UserProfileDto? editingProfile = null;
+    private UserProfileDto currentProfile = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfiles();
+    }
+
+    private async Task LoadProfiles()
+    {
+        try
+        {
+            isLoading = true;
+            profiles = await ApiService.GetUserProfilesAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading profiles: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        editingProfile = null;
+        currentProfile = new UserProfileDto();
+        showCreateForm = true;
+    }
+
+    private void EditProfile(UserProfileDto profile)
+    {
+        editingProfile = profile;
+        currentProfile = new UserProfileDto
+        {
+            Id = profile.Id,
+            FirstName = profile.FirstName,
+            LastName = profile.LastName,
+            Email = profile.Email,
+            PhoneNumber = profile.PhoneNumber,
+            Address = profile.Address,
+            City = profile.City,
+            Country = profile.Country,
+            PostalCode = profile.PostalCode,
+            ProfessionalSummary = profile.ProfessionalSummary,
+            LinkedInProfile = profile.LinkedInProfile,
+            GitHubProfile = profile.GitHubProfile,
+            PortfolioWebsite = profile.PortfolioWebsite
+        };
+        showCreateForm = true;
+    }
+
+    private void HideCreateForm()
+    {
+        showCreateForm = false;
+        editingProfile = null;
+        currentProfile = new UserProfileDto();
+    }
+
+    private async Task SaveProfile()
+    {
+        try
+        {
+            isSaving = true;
+            
+            if (editingProfile == null)
+            {
+                await ApiService.CreateUserProfileAsync(currentProfile);
+            }
+            else
+            {
+                await ApiService.UpdateUserProfileAsync(currentProfile.Id, currentProfile);
+            }
+            
+            await LoadProfiles();
+            HideCreateForm();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving profile: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteProfile(int profileId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this profile?"))
+        {
+            try
+            {
+                await ApiService.DeleteUserProfileAsync(profileId);
+                await LoadProfiles();
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error deleting profile: {ex.Message}");
+            }
+        }
+    }
+}

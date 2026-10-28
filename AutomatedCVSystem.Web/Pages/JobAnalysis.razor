@@ -1,0 +1,498 @@
+@page "/job-analysis"
+@using AutomatedCVSystem.Core.DTOs
+@using AutomatedCVSystem.Web.Services
+@inject ApiService ApiService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Job Analysis - Automated CV System</PageTitle>
+
+<div class="job-analysis-container">
+    <div class="header">
+        <h1>Job Analysis</h1>
+        <p>Analyze job descriptions to extract key requirements and match them with your profile</p>
+    </div>
+
+    <div class="analysis-form">
+        <div class="form-section">
+            <h3>Select Your Profile</h3>
+            @if (profiles.Any())
+            {
+                <select @bind="selectedProfileId" class="form-control">
+                    <option value="">Select a profile...</option>
+                    @foreach (var profile in profiles)
+                    {
+                        <option value="@profile.Id">@profile.FirstName @profile.LastName</option>
+                    }
+                </select>
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <p>No profiles found. <a href="/profiles">Create a profile</a> first to analyze job descriptions.</p>
+                </div>
+            }
+        </div>
+
+        <div class="form-section">
+            <h3>Job Information</h3>
+            <div class="form-group">
+                <label for="jobTitle">Job Title *</label>
+                <InputText id="jobTitle" @bind-Value="jobRequest.JobTitle" class="form-control" placeholder="e.g., Senior Software Developer" />
+            </div>
+            <div class="form-group">
+                <label for="companyName">Company Name *</label>
+                <InputText id="companyName" @bind-Value="jobRequest.CompanyName" class="form-control" placeholder="e.g., Microsoft" />
+            </div>
+            <div class="form-group">
+                <label for="location">Location</label>
+                <InputText id="location" @bind-Value="jobRequest.Location" class="form-control" placeholder="e.g., Seattle, WA" />
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Job Description</h3>
+            <div class="form-group">
+                <label for="jobDescription">Paste the job description here *</label>
+                <InputTextArea id="jobDescription" @bind-Value="jobRequest.JobDescription" class="form-control" rows="10" 
+                              placeholder="Paste the complete job description including requirements, responsibilities, and qualifications..." />
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="AnalyzeJob" disabled="@(isAnalyzing || selectedProfileId == 0)">
+                @if (isAnalyzing)
+                {
+                    <span>Analyzing...</span>
+                }
+                else
+                {
+                    <span>Analyze Job Description</span>
+                }
+            </button>
+            <button class="btn btn-secondary" @onclick="ClearForm">Clear Form</button>
+        </div>
+    </div>
+
+    @if (analysisResult != null)
+    {
+        <div class="analysis-results">
+            <h2>Analysis Results</h2>
+            
+            <div class="matching-score">
+                <h3>Overall Matching Score</h3>
+                <div class="score-circle">
+                    <span class="score-value">@analysisResult.MatchingScore.OverallScore%</span>
+                </div>
+                <div class="score-breakdown">
+                    <div class="score-item">
+                        <span class="score-label">Skills Match:</span>
+                        <span class="score-percentage">@analysisResult.MatchingScore.SkillsMatch%</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Experience Match:</span>
+                        <span class="score-percentage">@analysisResult.MatchingScore.ExperienceMatch%</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Education Match:</span>
+                        <span class="score-percentage">@analysisResult.MatchingScore.EducationMatch%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="extracted-info">
+                <div class="info-section">
+                    <h3>Extracted Skills</h3>
+                    <div class="skills-list">
+                        @foreach (var skill in analysisResult.ExtractedSkills)
+                        {
+                            <span class="skill-tag">@skill</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Key Requirements</h3>
+                    <ul class="requirements-list">
+                        @foreach (var requirement in analysisResult.ExtractedRequirements)
+                        {
+                            <li>@requirement</li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="info-section">
+                    <h3>Experience Requirements</h3>
+                    <ul class="requirements-list">
+                        @foreach (var exp in analysisResult.ExtractedExperience)
+                        {
+                            <li>@exp</li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="info-section">
+                    <h3>Education Requirements</h3>
+                    <ul class="requirements-list">
+                        @foreach (var edu in analysisResult.ExtractedEducation)
+                        {
+                            <li>@edu</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+
+            <div class="skill-matches">
+                <h3>Your Skills vs Job Requirements</h3>
+                <div class="matches-grid">
+                    @foreach (var match in analysisResult.MatchingScore.SkillMatches)
+                    {
+                        <div class="match-item @(match.IsHighlighted ? "highlighted" : "")">
+                            <div class="match-skill">@match.SkillName</div>
+                            <div class="match-score">@(match.MatchScore * 100)%</div>
+                            @if (match.IsExactMatch)
+                            {
+                                <span class="exact-match">✓ Exact Match</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <a href="/cv-generation?jobId=@analysisResult.JobDescriptionId&profileId=@selectedProfileId" class="btn btn-success">
+                    Generate Customized CV
+                </a>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .job-analysis-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .header h1 {
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+
+    .analysis-form {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-section h3 {
+        color: #333;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .analysis-results {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .matching-score {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+    }
+
+    .score-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 1rem auto;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+
+    .score-breakdown {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 1rem;
+    }
+
+    .score-item {
+        text-align: center;
+    }
+
+    .score-label {
+        display: block;
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    .score-percentage {
+        display: block;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+
+    .extracted-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+    }
+
+    .info-section h3 {
+        color: #333;
+        margin-bottom: 1rem;
+    }
+
+    .skills-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .skill-tag {
+        background: #007bff;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+    }
+
+    .requirements-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .requirements-list li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .requirements-list li:last-child {
+        border-bottom: none;
+    }
+
+    .skill-matches {
+        margin-bottom: 2rem;
+    }
+
+    .matches-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .match-item {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #007bff;
+    }
+
+    .match-item.highlighted {
+        background: #e7f3ff;
+        border-left-color: #28a745;
+    }
+
+    .match-skill {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .match-score {
+        color: #007bff;
+        font-weight: bold;
+    }
+
+    .exact-match {
+        color: #28a745;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .action-buttons {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+
+    .alert a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .alert a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+@code {
+    private List<UserProfileDto> profiles = new();
+    private int selectedProfileId = 0;
+    private JobAnalysisRequest jobRequest = new();
+    private JobAnalysisResult? analysisResult = null;
+    private bool isAnalyzing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfiles();
+    }
+
+    private async Task LoadProfiles()
+    {
+        try
+        {
+            profiles = await ApiService.GetUserProfilesAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading profiles: {ex.Message}");
+        }
+    }
+
+    private async Task AnalyzeJob()
+    {
+        if (selectedProfileId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select a profile first.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(jobRequest.JobTitle) || 
+            string.IsNullOrWhiteSpace(jobRequest.CompanyName) || 
+            string.IsNullOrWhiteSpace(jobRequest.JobDescription))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please fill in all required fields.");
+            return;
+        }
+
+        try
+        {
+            isAnalyzing = true;
+            analysisResult = await ApiService.AnalyzeJobDescriptionAsync(selectedProfileId, jobRequest);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error analyzing job description: {ex.Message}");
+        }
+        finally
+        {
+            isAnalyzing = false;
+        }
+    }
+
+    private void ClearForm()
+    {
+        jobRequest = new JobAnalysisRequest();
+        analysisResult = null;
+    }
+}

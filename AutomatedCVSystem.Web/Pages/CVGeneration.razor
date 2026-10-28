@@ -1,0 +1,586 @@
+@page "/cv-generation"
+@using AutomatedCVSystem.Core.DTOs
+@using AutomatedCVSystem.Web.Services
+@using Microsoft.AspNetCore.WebUtilities
+@inject ApiService ApiService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<PageTitle>CV Generation - Automated CV System</PageTitle>
+
+<div class="cv-generation-container">
+    <div class="header">
+        <h1>CV Generation</h1>
+        <p>Generate customized CVs based on your profile and job analysis</p>
+    </div>
+
+    <div class="generation-form">
+        <div class="form-section">
+            <h3>Select Your Profile</h3>
+            @if (profiles.Any())
+            {
+                <select @bind="selectedProfileId" @bind:after="OnProfileChanged" class="form-control">
+                    <option value="">Select a profile...</option>
+                    @foreach (var profile in profiles)
+                    {
+                        <option value="@profile.Id">@profile.FirstName @profile.LastName</option>
+                    }
+                </select>
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <p>No profiles found. <a href="/profiles">Create a profile</a> first to generate CVs.</p>
+                </div>
+            }
+        </div>
+
+        @if (selectedProfileId > 0)
+        {
+            <div class="form-section">
+                <h3>CV Template & Format</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="templateType">Template Type</label>
+                        <select id="templateType" @bind="generationRequest.TemplateType" class="form-control">
+                            <option value="Professional">Professional</option>
+                            <option value="Modern">Modern</option>
+                            <option value="ATS-Friendly">ATS-Friendly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="fileFormat">File Format</label>
+                        <select id="fileFormat" @bind="generationRequest.FileFormat" class="form-control">
+                            <option value="PDF">PDF</option>
+                            <option value="DOCX">Word Document</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Customization Options</h3>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="generationRequest.IncludePhoto" />
+                        Include Photo Section
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Highlighted Skills</h3>
+                <p>Select skills to highlight in the generated CV:</p>
+                <div class="skills-selection">
+                    @if (selectedProfile?.Skills != null)
+                    {
+                        @foreach (var skill in selectedProfile.Skills)
+                        {
+                            <label class="skill-checkbox">
+                                <input type="checkbox" 
+                                       checked="@generationRequest.HighlightedSkills.Contains(skill.Name)"
+                                       @onchange="@((e) => ToggleSkill(skill.Name, (bool)e.Value!))" />
+                                <span>@skill.Name (@skill.ProficiencyLevel)</span>
+                            </label>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Highlighted Experience</h3>
+                <p>Select work experiences to highlight in the generated CV:</p>
+                <div class="experience-selection">
+                    @if (selectedProfile?.WorkExperiences != null)
+                    {
+                        @foreach (var exp in selectedProfile.WorkExperiences)
+                        {
+                            <label class="experience-checkbox">
+                                <input type="checkbox" 
+                                       checked="@generationRequest.HighlightedExperience.Contains(exp.CompanyName)"
+                                       @onchange="@((e) => ToggleExperience(exp.CompanyName, (bool)e.Value!))" />
+                                <span>@exp.JobTitle at @exp.CompanyName</span>
+                            </label>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="GenerateCV" disabled="@isGenerating">
+                    @if (isGenerating)
+                    {
+                        <span>Generating CV...</span>
+                    }
+                    else
+                    {
+                        <span>Generate CV</span>
+                    }
+                </button>
+                <button class="btn btn-secondary" @onclick="PreviewCV" disabled="@isGenerating">
+                    Preview CV
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (generatedCVs.Any())
+    {
+        <div class="generated-cvs">
+            <h2>Generated CVs</h2>
+            <div class="cvs-grid">
+                @foreach (var cv in generatedCVs)
+                {
+                    <div class="cv-card">
+                        <div class="cv-header">
+                            <h4>@cv.FileName</h4>
+                            <span class="cv-date">@cv.GeneratedAt.ToString("MMM dd, yyyy")</span>
+                        </div>
+                        <div class="cv-info">
+                            <p><strong>Format:</strong> @cv.FileFormat</p>
+                            <p><strong>Template:</strong> @cv.TemplateType</p>
+                            <p><strong>Size:</strong> @(cv.FileSizeBytes / 1024) KB</p>
+                        </div>
+                        <div class="cv-actions">
+                            <button class="btn btn-sm btn-primary" @onclick="() => DownloadCV(cv.GeneratedCVId)">
+                                <span class="oi oi-cloud-download"></span> Download
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteCV(cv.GeneratedCVId)">
+                                <span class="oi oi-trash"></span> Delete
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .cv-generation-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .header h1 {
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+
+    .generation-form {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-section h3 {
+        color: #333;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 0.5rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+
+    .skills-selection, .experience-selection {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 1rem;
+    }
+
+    .skill-checkbox, .experience-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .skill-checkbox:hover, .experience-checkbox:hover {
+        background-color: #f8f9fa;
+    }
+
+    .skill-checkbox input, .experience-checkbox input {
+        margin: 0;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-outline-danger {
+        background: transparent;
+        color: #dc3545;
+        border: 1px solid #dc3545;
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .generated-cvs {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .cvs-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .cv-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1.5rem;
+        transition: transform 0.2s;
+    }
+
+    .cv-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .cv-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .cv-header h4 {
+        margin: 0;
+        color: #333;
+        font-size: 1.1rem;
+    }
+
+    .cv-date {
+        color: #666;
+        font-size: 0.875rem;
+    }
+
+    .cv-info p {
+        margin: 0.25rem 0;
+        color: #666;
+        font-size: 0.875rem;
+    }
+
+    .cv-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+
+    .alert a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .alert a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+@code {
+    private List<UserProfileDto> profiles = new();
+    private List<CVGenerationResult> generatedCVs = new();
+    private int selectedProfileId = 0;
+    private UserProfileDto? selectedProfile = null;
+    private CVGenerationRequest generationRequest = new();
+    private bool isGenerating = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfiles();
+        
+        // Check for URL parameters
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("profileId", out var profileIdParam))
+        {
+            if (int.TryParse(profileIdParam, out var profileId))
+            {
+                selectedProfileId = profileId;
+                await OnProfileChanged();
+            }
+        }
+    }
+
+    private async Task LoadProfiles()
+    {
+        try
+        {
+            profiles = await ApiService.GetUserProfilesAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading profiles: {ex.Message}");
+        }
+    }
+
+    private async Task OnProfileChanged()
+    {
+        if (selectedProfileId > 0)
+        {
+            try
+            {
+                selectedProfile = await ApiService.GetUserProfileAsync(selectedProfileId);
+                if (selectedProfile != null)
+                {
+                    generationRequest.UserProfileId = selectedProfileId;
+                    await LoadGeneratedCVs();
+                }
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error loading profile: {ex.Message}");
+            }
+        }
+        else
+        {
+            selectedProfile = null;
+            generatedCVs.Clear();
+        }
+    }
+
+    private async Task LoadGeneratedCVs()
+    {
+        if (selectedProfileId > 0)
+        {
+            try
+            {
+                generatedCVs = await ApiService.GetGeneratedCVsForUserAsync(selectedProfileId);
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error loading generated CVs: {ex.Message}");
+            }
+        }
+    }
+
+    private void ToggleSkill(string skillName, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!generationRequest.HighlightedSkills.Contains(skillName))
+            {
+                generationRequest.HighlightedSkills.Add(skillName);
+            }
+        }
+        else
+        {
+            generationRequest.HighlightedSkills.Remove(skillName);
+        }
+    }
+
+    private void ToggleExperience(string companyName, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!generationRequest.HighlightedExperience.Contains(companyName))
+            {
+                generationRequest.HighlightedExperience.Add(companyName);
+            }
+        }
+        else
+        {
+            generationRequest.HighlightedExperience.Remove(companyName);
+        }
+    }
+
+    private async Task GenerateCV()
+    {
+        if (selectedProfileId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select a profile first.");
+            return;
+        }
+
+        try
+        {
+            isGenerating = true;
+            var result = await ApiService.GenerateCVAsync(generationRequest);
+            await LoadGeneratedCVs();
+            await JSRuntime.InvokeVoidAsync("alert", "CV generated successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating CV: {ex.Message}");
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task PreviewCV()
+    {
+        if (selectedProfileId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select a profile first.");
+            return;
+        }
+
+        try
+        {
+            byte[] fileBytes;
+            string fileName;
+            string contentType;
+
+            if (generationRequest.FileFormat.ToUpper() == "PDF")
+            {
+                fileBytes = await ApiService.GeneratePDFAsync(generationRequest);
+                fileName = $"{selectedProfile?.FirstName}_{selectedProfile?.LastName}_Preview.pdf";
+                contentType = "application/pdf";
+            }
+            else
+            {
+                fileBytes = await ApiService.GenerateWordAsync(generationRequest);
+                fileName = $"{selectedProfile?.FirstName}_{selectedProfile?.LastName}_Preview.docx";
+                contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            }
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, contentType, Convert.ToBase64String(fileBytes));
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating preview: {ex.Message}");
+        }
+    }
+
+    private async Task DownloadCV(int generatedCVId)
+    {
+        try
+        {
+            var cv = generatedCVs.FirstOrDefault(c => c.GeneratedCVId == generatedCVId);
+            if (cv != null)
+            {
+                var fileBytes = await System.IO.File.ReadAllBytesAsync(cv.FilePath);
+                var contentType = cv.FileFormat.ToUpper() == "PDF" 
+                    ? "application/pdf" 
+                    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                
+                await JSRuntime.InvokeVoidAsync("downloadFile", cv.FileName, contentType, Convert.ToBase64String(fileBytes));
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error downloading CV: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteCV(int generatedCVId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this CV?"))
+        {
+            try
+            {
+                await ApiService.DeleteGeneratedCVAsync(generatedCVId);
+                await LoadGeneratedCVs();
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error deleting CV: {ex.Message}");
+            }
+        }
+    }
+}
